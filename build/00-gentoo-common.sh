@@ -57,7 +57,14 @@ mkdir -p /etc/portage/package.accept_keywords
 mkdir -p /etc/portage/package.use
 echo 'sys-kernel/installkernel dracut' > /etc/portage/package.use/installkernel
 
-# 5. Ebuild overlay for atoms ::gentoo does not package (sys-apps/bootc,
+# 5. Trust the official binhost signing key. binpkg-request-signature (a
+#    hard no-compile guarantee) makes portage reject signed official binpkgs
+#    whose key it does not know; getuto imports the release key. getuto is
+#    idempotent and cheap; a later signature failure would still abort, so do
+#    not treat this as a gate.
+getuto >/dev/null 2>&1 || true
+
+# 6. Ebuild overlay for atoms ::gentoo does not package (sys-apps/bootc,
 # app-shells/gum, dev-util/just), shipped inside the gentoo-ing-packages image
 # so their versions resolve. Section name == repo_name (profiles/repo_name).
 if [ -f "${EBUILD_OVERLAY}/metadata/layout.conf" ]; then
@@ -68,7 +75,7 @@ priority = 50
 EOF
 fi
 
-# 6. Binhosts. The official Gentoo binhost does the heavy lifting — builds run
+# 7. Binhosts. The official Gentoo binhost does the heavy lifting — builds run
 # from prebuilt binaries, not source. The curated overlay from
 # gentoo-ing-packages sits ABOVE it (higher priority wins in binrepos.conf), so
 # any package we build there replaces the official version — updated or gap
