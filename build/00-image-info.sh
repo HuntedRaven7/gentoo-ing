@@ -13,14 +13,14 @@ set -euo pipefail
 #   IMAGE_VENDOR        - Image vendor/owner (e.g. github username or org)
 #   UBLUE_IMAGE_TAG     - Image tag/stream (e.g. stable, testing, latest)
 #   BASE_IMAGE_NAME     - Base image name (e.g. silverblue)
-#   FEDORA_MAJOR_VERSION - Fedora version (e.g. 42)
-#   VERSION             - Full version string (e.g. stable-42.20250531)
+#   GENTOO_PROFILE      - Gentoo profile (e.g. 23.0)
+#   VERSION             - Full version string (e.g. stable-23.0.20260601)
 #   SHA_HEAD_SHORT      - Short git SHA (optional, for dev builds)
 ###############################################################################
 
 # Branding — customize these for your image
-IMAGE_PRETTY_NAME="${IMAGE_PRETTY_NAME:-My Custom OS}"
-IMAGE_LIKE="${IMAGE_LIKE:-fedora}"
+IMAGE_PRETTY_NAME="${IMAGE_PRETTY_NAME:-gentoo-ing}"
+IMAGE_LIKE="${IMAGE_LIKE:-gentoo}"
 HOME_URL="${HOME_URL:-https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}}"
 DOCUMENTATION_URL="${DOCUMENTATION_URL:-https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}/blob/main/README.md}"
 SUPPORT_URL="${SUPPORT_URL:-https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}/issues}"
@@ -52,7 +52,7 @@ cat >"${IMAGE_INFO}" <<EOF
   "image-ref": "${IMAGE_REF}",
   "image-tag": "${UBLUE_IMAGE_TAG}",
   "base-image-name": "${BASE_IMAGE_NAME}",
-  "fedora-version": "${FEDORA_MAJOR_VERSION}"
+  "gentoo-profile": "${GENTOO_PROFILE}"
 }
 EOF
 

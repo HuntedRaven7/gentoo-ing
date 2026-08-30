@@ -4,32 +4,34 @@ This directory contains build scripts used during image creation. The default Co
 
 ## How It Works
 
-Scripts are named with a number prefix (e.g., `10-build.sh`, `20-onepassword.sh`) and run in ascending order during the container build process.
+Scripts are named with a number prefix (e.g., `10-build.sh`, `20-extra-packages.sh`) and run in ascending order during the container build process.
+
+**Most scripts should NOT be custom here.** On Gentoo the image installs everything with `emerge --getbinpkg --usepkgonly` from the configured binhosts — a strict binary diet. The main repo **never compiles a package**: the curated `gentoo-ing` overlay (`gentoo-ing-packages`) supplies anything the official Gentoo binhost does not. Packages that need building from source (bootc, kernel, firmware, gap tools) are prebuilt in `gentoo-ing-packages` and consumed as binpkgs here; a missing binpkg fails the build rather than triggering a source compile.
 
 ## Included Scripts
 
-- **`10-build.sh`** - Main build script for base system modifications, package installation, and service configuration
+- **`00-gentoo-common.sh`** - Shared bootstrap: portage tree, profile symlink, make.conf defaults (getbinpkg + usepkgonly, stable keywords), license drop-in, ebuild overlay import for atoms `::gentoo` lacks, and binrepos.conf (curated overlay priority 10000 + official binhost 9999)
+- **`00-image-info.sh`** - Writes `/usr/share/ublue-os/image-info.json` and branding into `/usr/lib/os-release`
+- **`10-build.sh`** - Main build: emerges the bootc/OSTree/Podman/kernel stack as binaries, builds the initramfs, writes prepare-root.conf, lays out `/var`
+- **`clean-stage.sh`** - Removes build residue before linting (keeps the binhost)
 
 ## Example Scripts
 
-- **`20-onepassword.sh.example`** - Example showing how to install software from third-party RPM repositories (Google Chrome, 1Password)
-- **`30-cosmic-desktop.sh.example`** - Example showing how to replace the GNOME desktop with COSMIC desktop
-- **`40-nvidia.sh.example`** - Example showing how to add NVIDIA drivers and CDI container support
+- **`20-extra-packages.sh.example`** - Example showing how to install extra packages with `emerge --getbinpkg`
+- **`30-desktop.sh.example`** - Example showing how to add a desktop environment (profile changes warn: do early)
+- **`40-nvidia.sh.example`** - Example showing how to add NVIDIA `nvidia-drivers` for `gentoo-kernel-bin`
 
 To use an example script:
-1. Rename it to remove the `.example` extension (for example, `mv build/20-onepassword.sh.example build/20-onepassword.sh`).
+1. Rename it to remove the `.example` extension (for example, `mv build/20-extra-packages.sh.example build/20-extra-packages.sh`).
 2. Add the standard `RUN` block below after the `10-build.sh` block in `Containerfile`, replacing `NN-example.sh` with the renamed script.
 3. Run `just build`.
 
 ```dockerfile
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=cache,dst=/var/cache/libdnf5 \
-    --mount=type=cache,dst=/var/cache/rpm-ostree \
-    --mount=type=secret,id=GITHUB_TOKEN \
-    --mount=type=tmpfs,dst=/boot \
-    --mount=type=tmpfs,dst=/tmp \
     /ctx/build/NN-example.sh
 ```
+
+For anything the binhosts do not carry, source builds are CPU-bound on GH Actions — and deliberately forbidden in this repo. Prebuild those packages in the `gentoo-ing-packages` factory instead.
 
 ## Creating Your Own Scripts
 
@@ -73,5 +75,5 @@ The template runs scripts explicitly, rather than automatically discovering file
 
 - Scripts run as root during build
 - Build context is available at `/ctx`
-- Use dnf5 for package management (not dnf or yum)
-- Always use `-y` flag for non-interactive installs
+- Use `emerge --getbinpkg --usepkgonly` for package management; write overrides to `/etc/portage` drop-ins (make.conf, package.use, package.accept_keywords, binrepos.conf)
+- Keep `00-gentoo-common.sh` first in any ordering of build steps that needs portage

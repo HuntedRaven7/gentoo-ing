@@ -42,17 +42,17 @@
       "automergeStrategy": "squash"
     },
     {
-      "description": "Keep first-party OCI context images fresh immediately",
-      "matchDepNames": ["ghcr.io/projectbluefin/common", "ghcr.io/ublue-os/brew"],
+      "description": "Keep the first-party binhost overlay fresh immediately",
+      "matchDepNames": ["ghcr.io/HuntedRaven7/gentoo-ing-packages"],
       "matchUpdateTypes": ["digest", "pinDigest", "pin"],
       "automerge": true,
       "schedule": ["at any time"]
     },
     {
-      "description": "Do not automatically cross Fedora major releases",
-      "matchDepNames": ["quay.io/fedora-ostree-desktops/silverblue"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
+      "description": "Track the gentoo stage3 base image digest without silently crossing the stable systemd channel",
+      "matchDepNames": ["gentoo/stage3"],
+      "matchUpdateTypes": ["digest", "pinDigest"],
+      "automerge": true
     }
   ]
 }
