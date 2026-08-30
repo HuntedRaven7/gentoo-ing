@@ -1,0 +1,15 @@
+# Default Flatpak applications
+# These will be installed on first boot
+# Format: INI file with [Flatpak Preinstall NAME] groups
+# See: https://docs.flatpak.org/en/latest/flatpak-command-reference.html#flatpak-preinstall
+
+# Uncomment the apps you want installed on first boot:
+
+;[Flatpak Preinstall org.mozilla.firefox]
+;Branch=stable
+
+;[Flatpak Preinstall org.mozilla.Thunderbird]
+;Branch=stable
+
+;[Flatpak Preinstall org.gnome.Calculator]
+;Branch=stable

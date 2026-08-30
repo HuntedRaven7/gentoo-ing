@@ -1,0 +1,57 @@
+name: Renovate
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/renovate.json"
+      - ".github/workflows/renovate.yml"
+
+permissions: {}
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check for RENOVATE_TOKEN
+        id: token-check
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          if [[ -z "${TOKEN}" ]]; then
+            echo "RENOVATE_TOKEN secret not configured — skipping Renovate."
+            echo "See .github/SETUP_CHECKLIST.md to set up the token."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate RENOVATE_TOKEN
+        if: steps.token-check.outputs.configured == 'true'
+        uses: ./.github/actions/check-token-health
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+          token_name: RENOVATE_TOKEN
+          required_scopes: repo,workflow
+
+      - name: Run Renovate
+        if: steps.token-check.outputs.configured == 'true'
+        uses: renovatebot/github-action@5402b206248e5a8c8427a15102702eb9c1793efc # v46.2.4
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+        env:
+          LOG_LEVEL: debug
+          RENOVATE_REPOSITORIES: '["${{ github.repository }}"]'

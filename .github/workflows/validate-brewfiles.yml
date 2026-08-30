@@ -1,0 +1,34 @@
+name: Validate Brewfiles
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "custom/brew/**"
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@a657b8b0cd35d0f65cce41fce9b24cf054b49869 # master
+
+      - name: Validate Brewfiles
+        shell: bash
+        run: |
+          echo "Validating Brewfiles in custom/brew/ directory..."
+
+          find "custom/brew" -iname '*\.Brewfile*' -print0 | \
+            while IFS= read -r -d '' brewfile ; do
+              echo "::group:: ===$(basename "$brewfile")==="
+              if brew bundle check --file="$brewfile" 2>&1; then
+                echo "✓ $brewfile is valid"
+              else
+                echo "✗ $brewfile validation failed"
+                exit 1
+              fi
+              echo "::endgroup::"
+            done

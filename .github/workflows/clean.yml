@@ -1,0 +1,33 @@
+name: Cleanup Old Images
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Weekly on Sunday at midnight UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+
+jobs:
+  delete-older-than-90:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cleanup old images
+        uses: projectbluefin/actions/bootc-build/ghcr-cleanup@eb4c546389f19ad9e42f1af052623de73c620ebb # v1
+        with:
+          # IMPORTANT: Update this to match your image name from Containerfile (# Name: comment)
+          # This should match the "# Name: your-repo-name" comment in your Containerfile
+          # Example: If your Containerfile has "# Name: my-custom-os", use "my-custom-os" here
+          packages: finpilot
+          older-than: 90 days
+          keep-n-tagged: 7
+          keep-n-untagged: 7
+          github-token: ${{ secrets.GITHUB_TOKEN }}
