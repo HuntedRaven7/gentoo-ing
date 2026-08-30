@@ -1,4 +1,4 @@
-# finpilot
+# gentoo-ing
 
 A template for building custom bootc operating system images based on the lessons from [Universal Blue](https://universal-blue.org/) and [Bluefin](https://projectbluefin.io). It is designed to be used manually, but is optimized to be bootstraped by GitHub Copilot. After set up you'll have your own custom Linux.
 
@@ -33,7 +33,7 @@ Here are the changes from [Base Image Name]. This image is based on [Bluefin/Baz
 - Desktop environment changes
 - Other notable modifications
 
-_Last updated: [date]_
+_Last updated: 2026-08-30_
 
 > Replace the placeholders above with your actual customizations whenever you add or remove packages, apps, or configuration. This section is what tells users how your image differs from the base.
 

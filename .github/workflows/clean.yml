@@ -26,7 +26,7 @@ jobs:
           # IMPORTANT: Update this to match your image name from Containerfile (# Name: comment)
           # This should match the "# Name: your-repo-name" comment in your Containerfile
           # Example: If your Containerfile has "# Name: my-custom-os", use "my-custom-os" here
-          packages: finpilot
+          packages: gentoo-ing
           older-than: 90 days
           keep-n-tagged: 7
           keep-n-untagged: 7
