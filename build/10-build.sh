@@ -12,6 +12,7 @@ set -euo pipefail
 # the initramfs, writes prepare-root.conf (composefs + readonly sysroot) and
 # the /var layout bootc requires.
 
+# shellcheck disable=SC1091 # sourced from the ctx stage, absent on the host
 source /ctx/build/00-gentoo-common.sh
 
 # System drop-ins (global + gentoo flavor) copied in from the context stage.
@@ -121,7 +122,7 @@ systemctl enable flatpak-preinstall.service
 
 printf 'L! /etc/resolv.conf - - - - /run/systemd/resolve/stub-resolv.conf\n' > /usr/lib/tmpfiles.d/resolv-conf.conf
 
-KVER=$(basename "$(ls /usr/lib/modules | head -n 1)")
+KVER=$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)
 dracut --force --no-hostonly --reproducible --zstd --verbose \
     --kver "$KVER" "/usr/lib/modules/$KVER/initramfs.img"
 
@@ -130,6 +131,7 @@ printf '[composefs]\nenabled = yes\n[sysroot]\nreadonly = true\n' > /usr/lib/ost
 printf 'd /var/home 0755 root root -\nd /var/srv 0755 root root -\nd /var/mnt 0755 root root -\nd /var/opt 0755 root root -\nd /var/usrlocal 0755 root root -\nd /var/roothome 0700 root root -\nd /run/media 0755 root root -\n' > /usr/lib/tmpfiles.d/bootc-base-dirs.conf
 
 # bootc /var layout: move the mutable trees under /var, then relink.
+# shellcheck disable=SC2114 # the exploded stage layout is scrapped on purpose
 rm -rf /{boot,home,root,srv,mnt,var,usr/local,opt}
 
 mkdir -p /sysroot /boot /usr/lib/ostree /var /var/tmp
