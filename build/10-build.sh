@@ -49,10 +49,14 @@ PACKAGES=(
     app-shells/gum
     dev-util/just
     app-misc/jq
-    app-emulation/flatpak
+    sys-apps/flatpak
 )
 
-emerge --verbose --deep --newuse "${PACKAGES[@]}"
+emerge --verbose --deep --newuse "${PACKAGES[@]}" | tee /tmp/emerge.log
+if grep -qE '^\[ebuild ' /tmp/emerge.log; then
+    echo "FATAL: a source compile was scheduled; this image is binpkg-only." >&2
+    exit 1
+fi
 
 echo "uninitialized" > /etc/machine-id
 ln -sf /usr/share/zoneinfo/UTC /etc/localtime

@@ -38,9 +38,9 @@ grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
     || echo 'ACCEPT_LICENSE="*"' >> /etc/portage/make.conf
 grep -q '^FEATURES=.*getbinpkg' /etc/portage/make.conf \
     || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance binpkg-request-signature parallel-fetch parallel-install"' >> /etc/portage/make.conf
-# shellcheck disable=SC2016 # $(nproc) must reach make.conf unevaluated
+NPROC=$(nproc)
 grep -q '^MAKEOPTS=' /etc/portage/make.conf \
-    || echo 'MAKEOPTS="-j$(nproc)"' >> /etc/portage/make.conf
+    || echo "MAKEOPTS=\"-j${NPROC}\"" >> /etc/portage/make.conf
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
     || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --usepkgonly --binpkg-respect-use=y"' >> /etc/portage/make.conf
 
@@ -52,14 +52,18 @@ mkdir -p /etc/portage/package.accept_keywords
 # leave empty: stable-only resolution — the overlay supplies any testing dep
 # as a prebuilt binpkg.
 
+# gentoo-kernel-bin generates its initramfs via installkernel[+dracut]; the
+# overlay builds it that way, so the binpkg matches --binpkg-respect-use=y.
+mkdir -p /etc/portage/package.use
+echo 'sys-kernel/installkernel dracut' > /etc/portage/package.use/installkernel
+
 # 5. Ebuild overlay for atoms ::gentoo does not package (sys-apps/bootc,
 # app-shells/gum, dev-util/just), shipped inside the gentoo-ing-packages image
-# so their versions resolve.
+# so their versions resolve. Section name == repo_name (profiles/repo_name).
 if [ -f "${EBUILD_OVERLAY}/metadata/layout.conf" ]; then
-    cat > /etc/portage/repos.conf/gentoo-ing-overlay.conf <<EOF
-[gentoo-ing-overlay]
+    cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
+[gentoo-ing-ebuilds]
 location = ${EBUILD_OVERLAY}
-sync-type = none
 priority = 50
 EOF
 fi
