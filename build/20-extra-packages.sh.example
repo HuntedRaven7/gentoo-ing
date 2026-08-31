@@ -25,6 +25,6 @@ set -euo pipefail
 ###############################################################################
 
 echo "Installing extra packages..."
-emerge --verbose app-editors/emacs app-office/libreoffice
+#emerge --verbose app-editors/emacs app-office/libreoffice
 
 echo "Extra packages installed successfully"

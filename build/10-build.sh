@@ -52,7 +52,7 @@ PACKAGES=(
     sys-apps/flatpak
 )
 
-emerge --verbose --deep --newuse "${PACKAGES[@]}" | tee /tmp/emerge.log
+emerge --verbose -g --deep --newuse "${PACKAGES[@]}" | tee /tmp/emerge.log
 if grep -qE '^\[ebuild ' /tmp/emerge.log; then
     echo "FATAL: a source compile was scheduled; this image is binpkg-only." >&2
     exit 1
