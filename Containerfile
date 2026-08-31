@@ -51,11 +51,6 @@
 # See: https://github.com/HuntedRaven7/blueprint/blob/main/docs/GENTOO.md
 ###############################################################################
 
-# OCI context images - imported below and pinned directly in their FROM lines.
-# The base image is pinned in the FROM line below and updated by Renovate.
-FROM ghcr.io/projectbluefin/common:latest@sha256:be657eddde945b42c2e631b9e17f1786f948b757380a1e2ba504d826d0a0a8b1 AS common
-FROM ghcr.io/ublue-os/brew:latest@sha256:5c5b6dea4b9faaab4d6fa81d7fc4f37f218c8a75a0839c72ae70b268bfdf4b0f AS brew
-
 # Curated binhost produced by the gentoo-ing-packages factory. Digest is pinned
 # by Renovate; a floating tag initially while the first publish is seeded.
 ARG GENTOO_PACKAGES_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-packages:latest"
@@ -105,12 +100,4 @@ CMD ["/sbin/init"]
 ### LINTING
 ## Verify final image and contents are correct. --fatal-warnings catches issues.
 LABEL containers.bootc=1
-<<<<<<< HEAD
-<<<<<<< HEAD
 RUN bootc container lint --fatal-warnings
-=======
-RUN bootc container lint --fatal-warnings
->>>>>>> bb05bc7 (feat: migrate to a binpkg-only Gentoo bootc image on stage3:systemd)
-=======
-RUN bootc container lint --fatal-warnings
->>>>>>> 8212834 (fix(lint): end every file with a newline (pre-commit EOF fixer))
