@@ -60,7 +60,6 @@ FROM ghcr.io/ublue-os/brew:latest@sha256:5c5b6dea4b9faaab4d6fa81d7fc4f37f218c8a7
 ARG GENTOO_PACKAGES_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-packages:latest"
 FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
 
->>>>>>> bb05bc7 (feat: migrate to a binpkg-only Gentoo bootc image on stage3:systemd)
 # Context stage - combine local build scripts, system files, and custom files
 FROM scratch AS ctx
 
@@ -106,7 +105,11 @@ CMD ["/sbin/init"]
 ## Verify final image and contents are correct. --fatal-warnings catches issues.
 LABEL containers.bootc=1
 <<<<<<< HEAD
+<<<<<<< HEAD
 RUN bootc container lint --fatal-warnings
 =======
 RUN bootc container lint --fatal-warnings
 >>>>>>> bb05bc7 (feat: migrate to a binpkg-only Gentoo bootc image on stage3:systemd)
+=======
+RUN bootc container lint --fatal-warnings
+>>>>>>> 8212834 (fix(lint): end every file with a newline (pre-commit EOF fixer))
