@@ -12,30 +12,38 @@ Instead, you create your own OS repository based on this template, allowing full
 
 ## What Makes this Raptor Different?
 
-Here are the changes from [Base Image Name]. This image is based on [Bluefin/Bazzite/Aurora/etc] and includes these customizations:
+This image is a **Gentoo** system, not a Fedora desktop. It abandons the RPM world (dnf5, COPR, rpm-ostree, Homebrew) for Portage on `gentoo/stage3:systemd`, while keeping the finpilot/Universal Blue bootc build system (multi-stage Containerfile, keyless signing, Renovate, main→stable promotion).
+
+### Package Delivery (the big one)
+
+- **Official Gentoo binhost** (`distfiles.gentoo.org`, amd64/23.0) does the heavy lifting: most packages are installed prebuilt with `--getbinpkg --usepkgonly`, so this repo **never compiles anything** — a missing binpkg fails the build rather than falling back to a source build.
+- **`HuntedRaven7/gentoo-ing-packages` binhost overlay** sits above the official host (priority 10000 vs 9999). It carries the packages the official host lacks — `bootc`, the kernel, firmware, `skopeo`, `flatpak`, `iwd`, `gum`, `just`, `jq` — as prebuilt binpkgs, plus a tiny ebuild overlay for the atoms `::gentoo` doesn't package at all (`bootc`, `gum`, `just`). Those gaps are compiled once in the factory's GH Actions, then consumed as binaries here.
+- Config lives in `build/00-gentoo-common.sh` (binrepos.conf + make.conf) and `build/10-build.sh` (the PACKAGES array).
 
 ### Added Packages (Build-time)
 
-- **System packages**: `tmux` and `gum` — tmux is the template's package-manager cache smoke test, and gum provides the interactive prompts used by the default ujust recipes.
+- **Kernel/OSTree stack**: `gentoo-kernel-bin`, `linux-firmware`, `dracut`, `ostree`, `systemd`, and `bootc` — all as binpkgs from the overlay/official host
+- **Container host**: `podman`, `skopeo`, `bubblewrap`, `btrfs-progs` + filesystem tools, `systemd-networkd`/`resolved`, `iwd`
+- **System**: `openssh`, `sudo`, `chrony`, `shadow`, `vim`/`tmux` (via the binhost overlay)
 
-### Added Applications (Runtime)
+### Boot/OSTree Configuration
 
-- **CLI Tools (Homebrew)**: neovim, helix - [brief explanation]
-- **GUI Apps (Flatpak)**: Spotify, Thunderbird - [brief explanation]
+- composefs + readonly sysroot (`prepare-root.conf`), hostonly=no zstd initramfs built per-kernel by dracut
+- `/var` overlay layout (home, roothome, srv, mnt, opt, usrlocal) for bootc
+- Enabled: `sshd`, `iwd`, `chronyd`, `systemd-networkd`, `systemd-resolved`; masked: `systemd-firstboot`
 
-### Removed/Disabled
+### Removed vs Finpilot
 
-- List anything removed from base image
+- Fedora base image, dnf5/RPM tooling, COPR helpers, Homebrew runtime (Brewfiles + ujust), `@projectbluefin/common` desktop config
 
 ### Configuration Changes
 
-- Any systemd services enabled/disabled
-- Desktop environment changes
-- Other notable modifications
+- Stable keywords only (matches what the binhosts prebuilt), accept-all licenses, `FEATURES=getbinpkg binpkg-multi-instance`, nproc builds
+- Runtime software is installed via Flatpak or containers; native packages are baked in at build time (the rootfs is read-only under bootc)
 
 _Last updated: 2026-08-30_
 
-> Replace the placeholders above with your actual customizations whenever you add or remove packages, apps, or configuration. This section is what tells users how your image differs from the base.
+> Update this section whenever you add or remove packages, apps, or configuration. It is what tells users how your image differs from the base.
 
 ## Guided Copilot Mode
 
@@ -63,13 +71,12 @@ Once the first build is green, use this prompt to add packages:
 
 ```
 Use the `finpilot-packages` and `finpilot-custom` skills, then:
-1. Add one system package to the image in `build/10-build.sh`
-2. Add one CLI tool to `custom/brew/default.Brewfile`
-3. Add one GUI app to `custom/flatpaks/default.preinstall`
-4. Add shortcuts in `custom/ujust/custom-apps.just` to install them
-5. Update the README "What Makes this Raptor Different" section with the new entries
-6. Run `just build && just build-qcow2 && just run-vm-qcow2` to verify locally
-7. Open a PR and merge once `validate` passes
+1. Add one system package to the image in `build/10-build.sh` (or the gentoo-ing-packages overlay)
+2. Add one GUI app to `custom/flatpaks/default.preinstall`
+3. Add shortcuts in `custom/ujust/custom-apps.just` to install them
+4. Update the README "What Makes this Raptor Different" section with the new entries
+5. Run `just build && just build-qcow2 && just run-vm-qcow2` to verify locally
+6. Open a PR and merge once `validate` passes
 ```
 
 ### Phase 3 — Production
@@ -93,16 +100,15 @@ Use the `finpilot-maintain` and `finpilot-ci` skills, then:
   - PRs build and validate before merge
   - `main` builds `:stable-testing`; merging the auto-opened promotion PR to `stable` publishes `:stable`
 - Validates your files on pull requests so you never break a build:
-  - Brewfile, Justfile, ShellCheck, Renovate config, and it'll even check to make sure the flatpak you add exists on FlatHub
+  - Justfile, ShellCheck, Renovate config, and it'll even check to make sure the flatpak you add exists on Flathub
 - Production Grade Features
   - Container signing with keyless OIDC
 
-### Homebrew Integration
+### Gentoo Binhost Integration
 
-- Pre-configured Brewfiles for easy package installation and customization
-- Includes curated collections: development tools, fonts, CLI utilities. Go nuts.
-- Users install packages at runtime with `brew bundle`, aliased to premade `ujust commands`
-- See [custom/brew/README.md](custom/brew/README.md) for details
+- Curated binhost overlay (`HuntedRaven7/gentoo-ing-packages`) consumed by `COPY --from=` and pinned by digest; seeds and custom builds land in `packages/` there
+- Official Gentoo binhost as the load-bearing source — `emerge --getbinpkg` installs prebuilt binaries, so CI compiles only what both hosts miss
+- See [build/00-gentoo-common.sh](build/00-gentoo-common.sh) for the binrepos wiring
 
 ### Flatpak Support
 
@@ -118,9 +124,9 @@ Use the `finpilot-maintain` and `finpilot-ci` skills, then:
 
 ### Build Scripts
 
-- Modular numbered scripts (10-, 20-, 30-) run in order
-- Example scripts included for third-party repositories and desktop replacement
-- Helper functions for safe COPR usage
+- Modular numbered scripts (00-common, 10-build, clean-stage) run in order
+- Example scripts included for extra packages, desktops, and NVIDIA
+- Gentoo-native (emerge --getbinpkg, portage drop-ins); no COPR helpers
 - See [build/README.md](build/README.md) for details
 
 ## Quick Start
@@ -199,23 +205,21 @@ improvements with every future finpilot user.
 Choose your base image in `Containerfile` (the `FROM` line):
 
 ```dockerfile
-FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:...
+ARG GENTOO_IMAGE="gentoo/stage3:systemd"
+FROM ${GENTOO_IMAGE} AS system
 ```
-
-Finpilot layers on top of Fedora Silverblue, not Bluefin. Bluefin's desktop
-configuration is provided by `@projectbluefin/common` earlier in the build.
 
 Add your packages in `build/10-build.sh`:
 
 ```bash
-dnf5 install -y package-name
+emerge --getbinpkg --usepkgonly --verbose sys-apps/foo
 ```
 
 Customize your apps:
 
-- Add Brewfiles in `custom/brew/` ([guide](custom/brew/README.md))
 - Add Flatpaks in `custom/flatpaks/` ([guide](custom/flatpaks/README.md))
 - Add ujust commands in `custom/ujust/` ([guide](custom/ujust/README.md))
+- Prefer seeding updated packages into the `gentoo-ing-packages` overlay instead of compiling in CI
 
 ### 7. Development Workflow
 
@@ -341,7 +345,7 @@ Your workflow will:
 
 ## Detailed Guides
 
-- [Homebrew/Brewfiles](custom/brew/README.md) - Runtime package management
+- [Binhost / Package Delivery](build/00-gentoo-common.sh) - binrepos + make.conf wiring
 - [Flatpak Preinstall](custom/flatpaks/README.md) - GUI application setup
 - [ujust Commands](custom/ujust/README.md) - User convenience commands
 - [Build Scripts](build/README.md) - Build-time customization
@@ -352,38 +356,37 @@ This template follows the **multi-stage build architecture** from @projectbluefi
 
 ### Multi-Stage Build Pattern
 
-**Stage 1: Context (ctx)** - Combines resources from multiple sources:
+**Stage 1: Context (ctx)** - Combines resources from a single source:
 
 - Local build scripts (`/build`)
+- Local system drop-ins (`/system_files`)
 - Local custom files (`/custom`)
-- **@projectbluefin/common** - Desktop configuration shared with Aurora (includes branding/artwork content)
-- **@ublue-os/brew** - Homebrew integration
 
-**Stage 2: Base Image** - Default options:
+**Stage 1: Binhost (pkgs)** - The curated binary package host:
 
-- `quay.io/fedora-ostree-desktops/silverblue:44` (Fedora-based GNOME desktop, default)
-- `quay.io/centos-bootc/centos-bootc:stream10` (CentOS-based alternative)
+- `ghcr.io/HuntedRaven7/gentoo-ing-packages` - data-only image consumed by `COPY --from=` and pinned by digest (Renovate keeps the pin current). Contains the binpkg tree under `/var/cache/binhost/gentoo-ing` *and* the ebuild overlay under `/var/cache/binhost/gentoo-ing-ebuilds`
+
+**Stage 2: System** - The bootable image:
+
+- `gentoo/stage3:systemd` base, copies in the binhost + ebuild overlay, emerges the bootc/OSTree/Podman/kernel stack with `--getbinpkg --usepkgonly` (strict binary diet — a missing binpkg is a build error, never a source build), builds the initramfs, writes `prepare-root.conf`, lints with `bootc container lint`
 
 ### Benefits of This Architecture
 
 - **Modularity**: Compose your image from reusable OCI containers
-- **Maintainability**: Update shared components independently
+- **Maintainability**: Update the binhost overlay independently of the image
 - **Reproducibility**: Renovate automatically updates OCI tags to SHA digests
-- **Consistency**: Share components across Bluefin, Aurora, and custom images
+- **Binary-cache economics**: prebuilt packages from the official binhost + the factory-built overlay keep GH Actions cold — nothing is compiled in this repo
 
 ### OCI Container Resources
 
 The template imports files from these OCI containers at build time:
 
 ```dockerfile
-COPY --from=ghcr.io/projectbluefin/common:latest /system_files /oci/common
-COPY --from=ghcr.io/ublue-os/brew:latest /system_files /oci/brew
+FROM ghcr.io/HuntedRaven7/gentoo-ing-packages:latest AS pkgs
+FROM gentoo/stage3:systemd AS system
+COPY --from=pkgs /var/cache/binhost/gentoo-ing /var/cache/binhost/gentoo-ing
+COPY --from=pkgs /var/cache/binhost/gentoo-ing-ebuilds /var/cache/binhost/gentoo-ing-ebuilds
 ```
-
-Your build scripts can access these files at:
-
-- `/ctx/oci/common/` - Shared desktop configuration (branding/artwork content lives inside `common`)
-- `/ctx/oci/brew/` - Homebrew integration files
 
 **Note**: Renovate automatically updates `:latest` tags to SHA digests for reproducible builds.
 
@@ -432,6 +435,6 @@ Flatpaks are installed on first boot via `flatpak-preinstall.service`, not durin
 
 The `adw-gtk3-dark` runtime is not available on Flathub. These warnings are cosmetic and do not prevent other flatpaks from installing. To suppress, remove `adw-gtk3-dark` from your flatpak list in `custom/flatpaks/`.
 
-### Homebrew not available after bootc switch (fixes #44)
+### Host packages missing after bootc switch
 
-Homebrew is **pre-staged at build time** (tarball + systemd services). The `brew-setup.service` extracts it on **first boot**. If you don't see `brew`, verify `brew-setup.service` ran (`systemctl status brew-setup.service`) and that your Containerfile includes the Brew integration.
+The rootfs is read-only under bootc, so `emerge` cannot install into `/usr` at runtime. Add native packages to the `PACKAGES` array in `build/10-build.sh`, or seed them into the `gentoo-ing-packages` overlay, then rebuild. Runtime software goes in Flatpaks or containers.

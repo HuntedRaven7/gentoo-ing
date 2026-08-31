@@ -3,35 +3,51 @@
 ###############################################################################
 # Name: gentoo-ing
 #
-# IMPORTANT: Change "gentoo-ing" above to your desired project name.
-# This name should be used consistently throughout the repository in:
-#   - Justfile: export IMAGE_NAME := env("IMAGE_NAME", "your-name-here")
-#   - README.md: # your-name-here (title)
-#   - artifacthub-repo.yml: repositoryID: your-name-here
-#   - custom/ujust/README.md: localhost/your-name-here:stable (in bootc switch example)
+# This image is a bootc-ready Gentoo system (architecture follows
+# HuntedRaven7/blueprint's gentoo variant):
+#
+#   - Base:     gentoo/stage3:systemd
+#   - Binhost:  official Gentoo binhost (priority 9999) provides the prebuilt
+#               packages; ghcr.io/HuntedRaven7/gentoo-ing-packages (curated
+#               overlay, priority 10000, COPY --from= pinned by digest below)
+#               overrides any package we seed/publish — no source rebuilds
+#   - Builder:  compiles bootc from source, stage area in /output
+#   - System:   emerges the OSTree/kernel/dracut/Podman stack, builds the
+#               initramfs, writes prepare-root.conf, boots
 #
 # The project name defined here is the single source of truth for your
-# custom image's identity. When changing it, update all references above
-# to maintain consistency.
+# custom image's identity. When changing it, update all references in:
+#   - Justfile: export IMAGE_NAME := env("IMAGE_NAME", "gentoo-ing")
+#   - README.md: # gentoo-ing (title)
+#   - artifacthub-repo.yml: repositoryID: gentoo-ing
+#   - custom/ujust/README.md: localhost/gentoo-ing:stable (bootc switch example)
+#   - .github/workflows/clean.yml: packages: gentoo-ing
+#   - iso/iso.toml: ghcr.io/HuntedRaven7/gentoo-ing:stable
 ###############################################################################
 
 ###############################################################################
 # MULTI-STAGE BUILD ARCHITECTURE
 ###############################################################################
-# This Containerfile follows the Bluefin architecture pattern as implemented in
-# @projectbluefin/distroless. The architecture layers OCI containers together:
+# The finpilot factory pattern, rebased onto Gentoo. The main image NEVER
+# compiles a package: every atom comes prebuilt from a binhost.
 #
-# 1. Context Stage (ctx) - Combines resources from:
-#    - Local build scripts and custom files
-#    - @projectbluefin/common - Desktop configuration shared with Aurora
-#    - @ublue-os/brew - Homebrew integration
+# 1. Binhost stage (pkgs) - the binary package cache from
+#    ghcr.io/HuntedRaven7/gentoo-ing-packages. Its content is:
+#      /var/cache/binhost/gentoo-ing          -> binpkg tree + Packages index
+#      /var/cache/binhost/gentoo-ing-ebuilds  -> ebuild overlay (bootc, + any
+#                                                package ::gentoo lacks)
+#    The gentoo-ing-packages factory seeds the official binhost's set and
+#    BUILDS the gaps (bootc, kernel, firmware, skopeo, flatpak, gum, just, iwd,
+#    jq) once, publishing them as binpkgs so this repo stays compile-free.
 #
-# 2. Base Image Options (edit the FROM line below):
-#    - `quay.io/fedora-ostree-desktops/silverblue:44` (Fedora 44 and GNOME)
-#    - `quay.io/fedora-ostree-desktops/base-main:44` (Fedora 44, no desktop)
-#    - `quay.io/centos-bootc/centos-bootc:stream10` (CentOS-based)
+# 2. System stage - the actual image: binrepos.conf with the curated overlay at
+#    priority 10000 above the official binhost (9999), emerge of the
+#    kernel/firmware/OSTree/Podman/skopeo/systemd stack with --getbinpkg +
+#    --usepkgonly (hard failure if a binpkg is missing — never a source build),
+#    dracut initramfs, prepare-root.conf (composefs + readonly sysroot), and
+#    bootc container lint. Final layers are bootable via /sbin/init.
 #
-# See: https://docs.projectbluefin.io/contributing/ for architecture diagram
+# See: https://github.com/HuntedRaven7/blueprint/blob/main/docs/GENTOO.md
 ###############################################################################
 
 # OCI context images - imported below and pinned directly in their FROM lines.
@@ -39,73 +55,47 @@
 FROM ghcr.io/projectbluefin/common:latest@sha256:be657eddde945b42c2e631b9e17f1786f948b757380a1e2ba504d826d0a0a8b1 AS common
 FROM ghcr.io/ublue-os/brew:latest@sha256:5c5b6dea4b9faaab4d6fa81d7fc4f37f218c8a75a0839c72ae70b268bfdf4b0f AS brew
 
-# Context stage - combine local and imported OCI container resources
+# Curated binhost produced by the gentoo-ing-packages factory. Digest is pinned
+# by Renovate; a floating tag initially while the first publish is seeded.
+ARG GENTOO_PACKAGES_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-packages:latest"
+FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
+
+# Context stage - combine local build scripts, system files, and custom files
 FROM scratch AS ctx
 
 COPY build /build
 COPY custom /custom
+COPY system_files /system_files
 
-# Copy from OCI containers to distinct subdirectories to avoid conflicts
-COPY --from=common /system_files /oci/common
-COPY --from=brew /system_files /oci/brew
+# Base image - Gentoo stage3 with systemd. Renovate will keep the digest pin
+# current.
+ARG GENTOO_IMAGE="gentoo/stage3:systemd"
+FROM ${GENTOO_IMAGE} AS system
 
-# Base Image - GNOME included (Fedora official OSTree desktop)
-# Renovate will keep the digest pin up to date.
-FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:3318ebff7eada58e23c3aa8dc84349638b109a866fcd6cb5e9e150687179e701
-
-# Image identity - these define how bootc, fastfetch, and the ublue ecosystem
-# recognize your image. Change these to match your project name.
+# Re-declare identity ARGs for the system stage
 ARG IMAGE_NAME="gentoo-ing"
 ARG IMAGE_VENDOR="HuntedRaven7"
 ARG UBLUE_IMAGE_TAG="stable"
-ARG BASE_IMAGE_NAME="silverblue"
-ARG FEDORA_MAJOR_VERSION="44"
+ARG BASE_IMAGE_NAME="gentoo"
+ARG GENTOO_PROFILE="23.0"
 ARG VERSION=""
 
-### MODIFICATIONS
-## Make modifications desired in your image and install packages by modifying the build scripts.
-## The following RUN directives mount the ctx stage which includes:
-##   - Local build scripts from /build
-##   - Local custom files from /custom
-##   - Files from @projectbluefin/common at /oci/common (includes branding/artwork content)
-##   - Files from @ublue-os/brew at /oci/brew
-## Scripts are run in numerical order (10-build.sh, 20-example.sh, etc.)
+# Curated binhost + ebuild overlay for the runtime image (usable with
+# emerge --getbinpkg --usepkgonly). The binhost is pure binaries; the ebuild
+# overlay carries the few atoms ::gentoo lacks (bootc) so their versions
+# resolve during dependency calculation.
+COPY --from=pkgs /var/cache/binhost/gentoo-ing /var/cache/binhost/gentoo-ing
+COPY --from=pkgs /var/cache/binhost/gentoo-ing-ebuilds /var/cache/binhost/gentoo-ing-ebuilds
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=tmpfs,dst=/boot \
-    --mount=type=tmpfs,dst=/tmp \
     /ctx/build/00-image-info.sh
 
-# Set dnf options before build scripts (persists across subsequent RUN layers)
-RUN cp /etc/dnf/dnf.conf /etc/dnf/dnf.conf.tmp \
-    && mv /etc/dnf/dnf.conf.tmp /etc/dnf/dnf.conf \
-    && dnf5 config-manager setopt keepcache=1 install_weak_deps=0
-
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=cache,dst=/var/cache/libdnf5 \
-    --mount=type=cache,dst=/var/cache/rpm-ostree \
-    --mount=type=secret,id=GITHUB_TOKEN \
-    --mount=type=tmpfs,dst=/boot \
-    --mount=type=tmpfs,dst=/tmp \
     /ctx/build/10-build.sh
 
-### CLEANUP
-## Use Bluefin's clean-stage.sh to remove build artifacts before linting.
-## /run is deliberately not mounted as tmpfs here: clean-stage.sh must remove
-## image-layer files such as /run/dnf so bootc lint's nonempty-run-tmp check
-## passes. The script tolerates busy Buildah bind mounts while clearing contents.
-RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=tmpfs,dst=/tmp \
-    --mount=type=tmpfs,dst=/boot \
-    /ctx/build/clean-stage.sh
-
-### /opt
-## Makes /opt writeable by default. Needs to be here to make the main image
-## build strict (no /opt there). This is for downstream images/stuff like k0s.
-## If you need /opt as an immutable real directory for build-time packages
-## (e.g. google-chrome, docker-desktop), replace the next line with:
-##   RUN rm /opt && mkdir /opt
-RUN rm -rf /opt && ln -s /var/opt /opt
+### /var
+## bootc requires a writable /var for the sysroot; the build script lays out the
+## /var symlink structure (home, roothome, srv, mnt, opt, usrlocal).
 
 ### INIT
 ## Required for bootc images
@@ -113,4 +103,5 @@ CMD ["/sbin/init"]
 
 ### LINTING
 ## Verify final image and contents are correct. --fatal-warnings catches issues.
+LABEL containers.bootc=1
 RUN bootc container lint --fatal-warnings

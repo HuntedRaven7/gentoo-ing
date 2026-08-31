@@ -25,7 +25,7 @@ custom/ujust/
 ```
 
 **Example Files in this directory:**
-- [`custom-apps.just`](custom-apps.just) - Application installation commands (Brewfiles, Flatpaks, JetBrains Toolbox)
+- [`custom-apps.just`](custom-apps.just) - Application installation commands (Flatpaks, build-time package hints, JetBrains Toolbox)
 - [`custom-system.just`](custom-system.just) - System configuration commands (benchmarks, dev groups, maintenance)
 
 ## Example Commands
@@ -59,8 +59,8 @@ configure-thing:
 ```just
 # Groups organize commands in ujust help
 [group('Apps')]
-install-brewfile:
-    brew bundle --file /usr/share/ublue-os/homebrew/development.Brewfile
+install-flatpak:
+    flatpak install -y flathub {{ APP_ID }}
 ```
 
 ## Best Practices
@@ -104,14 +104,16 @@ interactive-command:
 
 ## Common Use Cases
 
-### 1. Installing Software via Brewfiles
+### 1. Installing Flatpak Applications
 ```just
 [group('Apps')]
-install-dev-tools:
-    brew bundle --file /usr/share/ublue-os/homebrew/development.Brewfile
+install-flatpak APP_ID:
+    #!/usr/bin/bash
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+    flatpak install -y flathub {{ APP_ID }}
 ```
 
-**See examples in [`custom-apps.just`](custom-apps.just)** for Brewfile shortcuts.
+**See examples in [`custom-apps.just`](custom-apps.just)** for Flatpak shortcuts.
 
 ### 2. System Configuration
 ```just
@@ -146,18 +148,18 @@ clean-containers:
 
 ## Important: Package Installation
 
-**Do not install packages via dnf5/rpm in ujust commands.** Bootc images are immutable and package installation should happen at build time in [`build/10-build.sh`](../../build/10-build.sh).
+**Do not install native packages via emerge in ujust commands.** The image rootfs (`/usr`) is read-only under bootc/OSTree, so runtime packages must live somewhere writable.
 
-For runtime package installation, use:
-- **Brewfiles** - Create shortcuts to Brewfiles in [`custom/brew/`](../brew/)
-- **Flatpak** - Install Flatpaks for GUI applications
+For runtime software, use:
+- **Flatpak** - Install GUI applications (they land in `/var/lib/flatpak`, which is writable)
+- **Build-time emerge** - Add native packages to the `PACKAGES` array in [`build/10-build.sh`](../../build/10-build.sh) or the `gentoo-ing-packages` overlay, then rebuild the image
 - **Containers** - Use toolbox/distrobox for development environments
 
-Example Brewfile shortcut (from [`custom-apps.just`](custom-apps.just)):
+Example Flatpak shortcut (from [`custom-apps.just`](custom-apps.just)):
 ```just
 [group('Apps')]
-install-fonts:
-    brew bundle --file /usr/share/ublue-os/homebrew/fonts.Brewfile
+install-vscode:
+    ujust install-flatpak com.visualstudio.code
 ```
 
 ## Available Helpers
@@ -220,7 +222,6 @@ The included files provide starting examples:
 - **[`custom-system.just`](custom-system.just)** - System configuration commands
 
 These files show how to:
-- Create shortcuts to Brewfiles in [`custom/brew/`](../brew/)
 - Install Flatpaks interactively
 - Configure system settings
 - Run maintenance tasks

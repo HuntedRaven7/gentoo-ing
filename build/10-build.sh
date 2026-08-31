@@ -1,67 +1,143 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-###############################################################################
-# Main Build Script
-###############################################################################
-# This script follows the @ublue-os/bluefin pattern for build scripts.
-# It uses set -euo pipefail for strict error handling.
-###############################################################################
+# System stage: populate the main image. Adapted from
+# HuntedRaven7/blueprint build_files/base/build-gentoo.sh, with strict binary
+# consumption (00-gentoo-common.sh): every package below is prebuilt on the
+# curated overlay or the official Gentoo binhost, and emerge --usepkgonly fails
+# the build rather than compile anything.
+#
+# Emerges the OSTree/bootc/kernel/dracut/Podman stack (binaries only), builds
+# the initramfs, writes prepare-root.conf (composefs + readonly sysroot) and
+# the /var layout bootc requires.
 
-# Source helper functions
-# shellcheck source=/dev/null
-source /ctx/build/copr-helpers.sh
+source /ctx/build/00-gentoo-common.sh
 
-# Enable nullglob for all glob operations to prevent failures on empty matches
-shopt -s nullglob
+# System drop-ins (global + gentoo flavor) copied in from the context stage.
+cp -avf "/ctx/system_files/global"/. /
+cp -avf "/ctx/system_files/gentoo"/. /
 
-echo "::group:: Overlay Brew Integration Files"
+PACKAGES=(
+    sys-apps/bootc
+    sys-kernel/gentoo-kernel-bin
+    sys-kernel/linux-firmware
+    sys-apps/systemd
+    sys-kernel/dracut
+    dev-util/ostree
+    sys-fs/btrfs-progs
+    sys-fs/dosfstools
+    sys-fs/e2fsprogs
+    sys-fs/xfsprogs
+    sys-fs/cryptsetup
+    sys-fs/lvm2
+    net-misc/openssh
+    net-misc/curl
+    net-misc/wget
+    net-wireless/iwd
+    app-containers/skopeo
+    app-containers/podman
+    app-admin/sudo
+    net-misc/chrony
+    app-arch/cpio
+    app-arch/xz-utils
+    sys-apps/bubblewrap
+    dev-libs/glib
+    sys-apps/dbus
+    sys-apps/shadow
+    app-shells/gum
+    dev-util/just
+    app-misc/jq
+    app-emulation/flatpak
+)
 
-# Brew integration files from @ublue-os/brew OCI (tarball, systemd services, shell integration)
-rsync -rvK /ctx/oci/brew/ /
+emerge --verbose --deep --newuse "${PACKAGES[@]}"
 
-echo "::endgroup::"
+echo "uninitialized" > /etc/machine-id
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+# shellcheck disable=SC2015
+sed -i 's|^HOME=.*|HOME=/var/home|' /etc/default/useradd || true
 
-echo "::group:: Copy Custom Files"
+systemctl enable systemd-networkd systemd-resolved chronyd sshd iwd
+systemctl mask systemd-firstboot.service
 
-# Copy Brewfiles to standard location
-mkdir -p /usr/share/ublue-os/homebrew/
-cp /ctx/custom/brew/*.Brewfile /usr/share/ublue-os/homebrew/
+# Runtime user-command layer (finpilot-style, Gentoo-native): ujust recipes are
+# composed into a single justfile and run through a thin /usr/bin/ujust wrapper.
+# The flatpak-preinstall helper installs custom/flatpaks/default.preinstall on
+# first boot.
+mkdir -p /usr/share/ublue-os/just
+cat /ctx/custom/ujust/*.just > /usr/share/ublue-os/just/60-custom.just
 
-# Consolidate Just Files
-mkdir -p /usr/share/ublue-os/just/
-find /ctx/custom/ujust -iname '*.just' -exec printf "\n\n" \; -exec cat {} \; >>/usr/share/ublue-os/just/60-custom.just
+cat > /usr/bin/ujust <<'EOF'
+#!/usr/bin/bash
+# Thin Universal Blue-style ujust wrapper: run the gentoo-ing justfile.
+case "${1}" in
+    list|--list|-l) exec /usr/bin/just --justfile /usr/share/ublue-os/just/60-custom.just --list ;;
+esac
+exec /usr/bin/just --justfile /usr/share/ublue-os/just/60-custom.just "$@"
+EOF
+chmod +x /usr/bin/ujust
 
-# Copy Flatpak preinstall files
-mkdir -p /usr/share/flatpak/preinstall.d/
-cp /ctx/custom/flatpaks/*.preinstall /usr/share/flatpak/preinstall.d/
+cat > /usr/bin/ujust-chsh <<'EOF'
+#!/usr/bin/bash
+exec /usr/bin/chsh "$@"
+EOF
+chmod +x /usr/bin/ujust-chsh
 
-echo "::endgroup::"
+printf '%s\n' 'd /usr/share/ublue-os 0755 root root -' > /usr/lib/tmpfiles.d/ublue-os.conf
 
-echo "::group:: Install Packages"
+# Flatpak preinstall on first boot
+install -D -m 0644 /ctx/custom/flatpaks/default.preinstall /usr/share/ublue-os/flatpaks/default.preinstall
 
-# Install the default packages and verify the DNF cache is working.
-# gum is required by the default ujust recipes for interactive prompts.
-dnf5 install -y tmux gum
+cat > /usr/lib/systemd/system/flatpak-preinstall.service <<'EOF'
+[Unit]
+Description=Install Flatpak applications from default.preinstall
+ConditionFirstBoot=yes
+ConditionPathExists=/usr/share/ublue-os/flatpaks/default.preinstall
+Wants=network-online.target
+After=network-online.target
 
-# Example using COPR with isolated pattern:
-# copr_install_isolated "ublue-os/staging" package-name
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/lib/ublue-os/flatpak-preinstall.sh
+TimeoutSec=15min
 
-echo "::endgroup::"
+[Install]
+WantedBy=multi-user.target
+EOF
 
-echo "::group:: System Configuration"
+cat > /usr/lib/ublue-os/flatpak-preinstall.sh <<'EOF'
+#!/usr/bin/bash
+set -euo pipefail
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+mapfile -t apps < /usr/share/ublue-os/flatpaks/default.preinstall
+for app in "${apps[@]}"; do
+    [[ "${app}" =~ ^# || -z "${app}" ]] && continue
+    flatpak install -y flathub "${app}" || true
+done
+EOF
+chmod +x /usr/lib/ublue-os/flatpak-preinstall.sh
+systemctl enable flatpak-preinstall.service
 
-# Enable/disable systemd services
-systemctl enable podman.socket
-systemctl enable brew-setup.service
-systemctl enable brew-update.timer
-systemctl enable brew-upgrade.timer
-# Example: systemctl mask unwanted-service
+printf 'L! /etc/resolv.conf - - - - /run/systemd/resolve/stub-resolv.conf\n' > /usr/lib/tmpfiles.d/resolv-conf.conf
 
-echo "::endgroup::"
+KVER=$(basename "$(ls /usr/lib/modules | head -n 1)")
+dracut --force --no-hostonly --reproducible --zstd --verbose \
+    --kver "$KVER" "/usr/lib/modules/$KVER/initramfs.img"
 
-# Restore default glob behavior
-shopt -u nullglob
+printf '[composefs]\nenabled = yes\n[sysroot]\nreadonly = true\n' > /usr/lib/ostree/prepare-root.conf
 
-echo "Custom build complete!"
+printf 'd /var/home 0755 root root -\nd /var/srv 0755 root root -\nd /var/mnt 0755 root root -\nd /var/opt 0755 root root -\nd /var/usrlocal 0755 root root -\nd /var/roothome 0700 root root -\nd /run/media 0755 root root -\n' > /usr/lib/tmpfiles.d/bootc-base-dirs.conf
+
+# bootc /var layout: move the mutable trees under /var, then relink.
+rm -rf /{boot,home,root,srv,mnt,var,usr/local,opt}
+
+mkdir -p /sysroot /boot /usr/lib/ostree /var /var/tmp
+
+ln -sT sysroot/ostree /ostree
+ln -sT var/roothome /root
+ln -sT var/srv /srv
+ln -sT var/mnt /mnt
+ln -sT var/opt /opt
+ln -sT var/home /home
+ln -sT ../var/usrlocal /usr/local
