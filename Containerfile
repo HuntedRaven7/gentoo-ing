@@ -7,13 +7,14 @@
 # HuntedRaven7/blueprint's gentoo variant):
 #
 #   - Base:     gentoo/stage3:systemd
-#   - Binhost:  official Gentoo binhost (priority 9999) provides the prebuilt
-#               packages; ghcr.io/HuntedRaven7/gentoo-ing-packages (curated
-#               overlay, priority 10000, COPY --from= pinned by digest below)
-#               overrides any package we seed/publish — no source rebuilds
-#   - Builder:  compiles bootc from source, stage area in /output
-#   - System:   emerges the OSTree/kernel/dracut/Podman stack, builds the
-#               initramfs, writes prepare-root.conf, boots
+#   - Binhost:  ghcr.io/HuntedRaven7/gentoo-ing-packages (curated overlay,
+#               priority 10000, COPY --from= pinned by digest below) is the
+#               ONLY source of packages — it mirrors the official Gentoo
+#               binhost set and compiles every gap, so no source rebuilds and
+#               no runtime dependency on distfiles.gentoo.org
+#   - System:   emerges the OSTree/kernel/dracut/Podman stack entirely from the
+#               overlay binrepo (no compiler anywhere), builds the initramfs,
+#               writes prepare-root.conf, boots
 #
 # The project name defined here is the single source of truth for your
 # custom image's identity. When changing it, update all references in:
@@ -40,8 +41,8 @@
 #    BUILDS the gaps (bootc, kernel, firmware, skopeo, flatpak, gum, just, iwd,
 #    jq) once, publishing them as binpkgs so this repo stays compile-free.
 #
-# 2. System stage - the actual image: binrepos.conf with the curated overlay at
-#    priority 10000 above the official binhost (9999), emerge of the
+# 2. System stage - the actual image: binrepos.conf points at the curated
+#    overlay (priority 10000) as the sole binrepo, emerge of the
 #    kernel/firmware/OSTree/Podman/skopeo/systemd stack with --getbinpkg +
 #    --usepkgonly (hard failure if a binpkg is missing — never a source build),
 #    dracut initramfs, prepare-root.conf (composefs + readonly sysroot), and
