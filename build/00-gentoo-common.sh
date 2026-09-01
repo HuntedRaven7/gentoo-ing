@@ -9,22 +9,32 @@ set -euo pipefail
 # consumption: --usepkgonly (hard failure if a binpkg is missing from the
 # overlay — never a source fallback).
 #
-# The ONLY source of packages is the gentoo-ing-packages overlay (priority
-# 10000): the factory mirrors the official binhost's set and compiles the
-# gaps, so this image never talks to distfiles.gentoo.org.
+# Packages come from TWO factories, both copied into the image by digest:
+#   - gentoo-ing-packages (priority 10000): every normal atom — the mirror of
+#     the official binhost set plus the compiled gaps (GNOME desktop, kernel,
+#     firmware, bootc, podman, ...).
+#   - gentoo-ing-akmods     (priority 10100): out-of-tree kernel modules
+#     (x11-drivers/nvidia-drivers) prebuilt against this image's exact kernel.
+#     Modules are version-hostage to their kernel, so they can only ship as a
+#     binpkg from a kernel-lockstep factory; 10-build.sh gates the build on the
+#     akmods .kver matching the installed kernel.
 #
 # Configures:
 #   - Portage tree (fresh webrsync each build so ebuild metadata covers the
 #     overlay's current versions)
-#   - profile symlink
+#   - profile symlink (gnome desktop/systemd — must match the gentoo-ing-packages
+#     and gentoo-ing-akmods makers whose overlays this consumer drains, so USE
+#     line up)
 #   - make.conf defaults (stable keywords, getbinpkg + usepkgonly, nproc -j)
 #   - package.license / package.accept_keywords drop-ins
 #   - ebuild overlay for atoms ::gentoo lacks (bootc/gum/just) from the binhost image
-#   - binrepos.conf: the gentoo-ing overlay (priority 10000), sole binrepo
+#   - binrepos.conf: the gentoo-ing overlay (priority 10000) PLUS the
+#     gentoo-ing-akmods module overlay (priority 10100)
 
-BRANCH_PROFILE="default/linux/amd64/23.0/systemd"
+BRANCH_PROFILE="default/linux/amd64/23.0/desktop/gnome/systemd"
 BINHOST_OVERLAY="/var/cache/binhost/gentoo-ing"
 EBUILD_OVERLAY="/var/cache/binhost/gentoo-ing-ebuilds"
+AKMODS_OVERLAY="/var/cache/binhost/gentoo-ing-akmods"
 
 # 1. Portage tree. Always pull a fresh snapshot: the overlay publishes current
 #    stable versions and the stage3 tree could lag them, which would make
@@ -55,11 +65,19 @@ echo '*/* *' > /etc/portage/package.license/00-all
 mkdir -p /etc/portage/package.accept_keywords
 # leave empty: stable-only resolution — the overlay supplies any testing dep
 # as a prebuilt binpkg.
+# Exception: nvidia-drivers is built as ~amd64 by the gentoo-ing-akmods maker
+# (to ship the LATEST NVIDIA driver). Accept the same keyword here so the
+# exactly-matching binpkg resolves; no source fallback is involved.
+echo 'x11-drivers/nvidia-drivers ~amd64' > /etc/portage/package.accept_keywords/nvidia
 
 # gentoo-kernel-bin generates its initramfs via installkernel[+dracut]; the
 # overlay builds it that way, so the binpkg matches --binpkg-respect-use=y.
+# The nvidia-drivers module must ALSO request exactly the flags its
+# gentoo-ing-akmods binpkg carries: dist-kernel (rebuild against the installed
+# binary kernel). Any USE divergence is rejected by --binpkg-respect-use=y.
 mkdir -p /etc/portage/package.use
 echo 'sys-kernel/installkernel dracut' > /etc/portage/package.use/installkernel
+echo 'x11-drivers/nvidia-drivers dist-kernel' > /etc/portage/package.use/nvidia
 
 # 5. Ebuild overlay for atoms ::gentoo does not package (sys-apps/bootc,
 # app-shells/gum, dev-util/just), shipped inside the gentoo-ing-packages image
@@ -72,16 +90,25 @@ priority = 50
 EOF
 fi
 
-# 6. Binhost. The gentoo-ing-packages overlay is the consumer's ONLY binrepo:
-# it mirrors the full official binhost set (same USE, same profile) and
-# compiles the atoms the official host does not ship, so every package --
-# atoms AND dependency closure -- resolves as a local binpkg. A missing binpkg
-# is a build error, not a silent source build. verify-signature=false: the
-# overlay bins are unsigned (our own factory, sealed supply chain).
+# 6. Binhosts. The gentoo-ing-packages overlay is the base binrepo: it mirrors
+# the full official binhost set (same USE, same profile) and compiles the atoms
+# the official host does not ship, so every normal package -- atoms AND
+# dependency closure -- resolves as a local binpkg. The gentoo-ing-akmods
+# overlay sits ABOVE it (priority 10100) and only ships the out-of-tree kernel
+# modules (plus their closure), prebuilt against this image's exact kernel;
+# its pruned atoms (kernel, installkernel, toolchains) resolve from gentoo-ing.
+# A missing binpkg is a build error, not a silent source build.
+# verify-signature=false: our own factories, sealed supply chain (unsigned).
 mkdir -p /etc/portage/binrepos.conf
 cat > /etc/portage/binrepos.conf/00-gentoo-ing.conf <<EOF
 [gentoo-ing]
 priority = 10000
 location = ${BINHOST_OVERLAY}
+verify-signature = false
+EOF
+cat > /etc/portage/binrepos.conf/10-gentoo-ing-akmods.conf <<EOF
+[gentoo-ing-akmods]
+priority = 10100
+location = ${AKMODS_OVERLAY}
 verify-signature = false
 EOF

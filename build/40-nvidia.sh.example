@@ -3,30 +3,28 @@
 set -euo pipefail
 
 ###############################################################################
-# Example: Installing NVIDIA drivers
+# NVIDIA is ALREADY installed by 10-build.sh
 ###############################################################################
-# This is an EXAMPLE file showing the Gentoo way to add NVIDIA support.
-# `x11-drivers/nvidia-drivers` ships the kernel module and userspace libraries.
-# The binary module (`kernel-open` USE) is preferred because it is prebuilt for
-# the gentoo-kernel-bin series that 10-build.sh installs.
+# x11-drivers/nvidia-drivers ships with the base image: it is added to the
+# PACKAGES list in 10-build.sh and consumed as a prebuilt binpkg from the
+# gentoo-ing-akmods module overlay (priority 10100), compiled by that factory
+# against THIS image's exact gentoo-kernel-bin. See:
+#   - build/00-gentoo-common.sh  (module binrepo + nvidia ~amd64/dist-kernel)
+#   - build/10-build.sh          (atom + .kver kernel-lockstep gate)
+#   - HuntedRaven7/gentoo-ing-akmods  (the factory that builds the module)
 #
-# To use this script:
-# 1. Rename: 40-nvidia.sh
-# 2. Add an explicit RUN block for /ctx/build/40-nvidia.sh after 10-build.sh.
+# Do NOT rename this file to 40-nvidia.sh. The old flow — a second manual
+# `emerge x11-drivers/nvidia-drivers` plus `kernel-open` on the kernel atom —
+# is superseded: it would diverge from the module binpkg's USE flags
+# (--binpkg-respect-use=y would reject it) and, on a sealed --usepkgonly image,
+# fails the build. The kernel module from the module overlay is the one and
+# only supported path.
 #
-# NOTE: emerge of nvidia-drivers postinst may require the exact linux-headers
-# for the kernel added by 10-build.sh. Keep the kernel + nvidia versions in
-# lockstep; seed updated driver binpkgs into gentoo-ing-packages to avoid a
-# source build.
+# This file exists purely as a pointer; it performs no install. If you later
+# need per-machine runtime tuning, add a modprobe.d drop-in instead:
+#   echo 'options nvidia NVreg_DynamicPowerManagement=0x02' \
+#     > /etc/modprobe.d/nvidia-options.conf
 ###############################################################################
 
-echo 'sys-kernel/gentoo-kernel-bin kernel-open' > /etc/portage/package.use/nvidia
-echo 'x11-drivers/nvidia-drivers ~amd64' > /etc/portage/package.accept_keywords/nvidia
-
-emerge --verbose x11-drivers/nvidia-drivers
-
-# Blacklist the open nouveau driver, load the proprietary module at boot
-echo 'blacklist nouveau' > /usr/lib/modprobe.d/nvidia-blacklist.conf
-echo 'options nvidia NVreg_DynamicPowerManagement=0x02' > /usr/lib/modprobe.d/nvidia-options.conf
-
-echo "NVIDIA driver installed successfully"
+# Placeholder so the script can never accidentally run as a build step.
+echo "INFO: nvidia-drivers is provided by 10-build.sh via the gentoo-ing-akmods module overlay; nothing to do here."

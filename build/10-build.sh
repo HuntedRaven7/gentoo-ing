@@ -8,9 +8,12 @@ set -euo pipefail
 # curated overlay or the official Gentoo binhost, and emerge --usepkgonly fails
 # the build rather than compile anything.
 #
-# Emerges the OSTree/bootc/kernel/dracut/Podman stack (binaries only), builds
-# the initramfs, writes prepare-root.conf (composefs + readonly sysroot) and
-# the /var layout bootc requires.
+# Emerges the OSTree/bootc/kernel/dracut/Podman stack and the full GNOME
+# desktop (gnome-base/gnome, GDM + NetworkManager) plus the nvidia kernel
+# module (x11-drivers/nvidia-drivers, prebuilt by the gentoo-ing-akmods
+# factory against this image's exact kernel) — all binaries only — builds the
+# initramfs, writes prepare-root.conf (composefs + readonly sysroot) and the
+# /var layout bootc requires.
 
 # shellcheck disable=SC1091 # sourced from the ctx stage, absent on the host
 source /ctx/build/00-gentoo-common.sh
@@ -35,7 +38,6 @@ PACKAGES=(
     net-misc/openssh
     net-misc/curl
     net-misc/wget
-    net-wireless/iwd
     app-containers/skopeo
     app-containers/podman
     app-admin/sudo
@@ -50,6 +52,11 @@ PACKAGES=(
     dev-util/just
     app-misc/jq
     sys-apps/flatpak
+    gnome-base/gnome
+    gnome-base/gdm
+    net-misc/networkmanager
+    net-wireless/iwd
+    x11-drivers/nvidia-drivers
 )
 
 emerge --verbose -g --deep --newuse "${PACKAGES[@]}" | tee /tmp/emerge.log
@@ -58,12 +65,28 @@ if grep -qE '^\[ebuild ' /tmp/emerge.log; then
     exit 1
 fi
 
+# Kernel-module lockstep. Out-of-tree modules (nvidia) are built by the
+# gentoo-ing-akmods factory against exactly ONE kernel, recorded in its .kver.
+# The kernel we install comes from gentoo-ing-packages, so the two agree only
+# when both factories ship the same gentoo-kernel-bin. Fail the build rather
+# than ship a module that will never load.
+IMAGE_KVER="$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)"
+AKMODS_KVER="$(cat "${AKMODS_OVERLAY}/.kver" 2>/dev/null || true)"
+if [ -n "${AKMODS_KVER}" ] && [ "${AKMODS_KVER}" != "${IMAGE_KVER}" ]; then
+    echo "FATAL: gentoo-ing-akmods built module(s) for kernel ${AKMODS_KVER}," >&2
+    echo "      but this image's kernel is ${IMAGE_KVER}. A mismatched module" >&2
+    echo "      would fail to load on every boot." >&2
+    echo "Fix: set config/kernel-pin.txt in gentoo-ing-akmods to ${IMAGE_KVER}," >&2
+    echo "     let it rebuild, and re-pin its digest in the Containerfile." >&2
+    exit 1
+fi
+
 echo "uninitialized" > /etc/machine-id
 ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 # shellcheck disable=SC2015
 sed -i 's|^HOME=.*|HOME=/var/home|' /etc/default/useradd || true
 
-systemctl enable systemd-networkd systemd-resolved chronyd sshd iwd
+systemctl enable systemd-resolved chronyd sshd NetworkManager gdm
 systemctl mask systemd-firstboot.service
 
 # Runtime user-command layer (finpilot-style, Gentoo-native): ujust recipes are

@@ -7,14 +7,19 @@
 # HuntedRaven7/blueprint's gentoo variant):
 #
 #   - Base:     gentoo/stage3:systemd
-#   - Binhost:  ghcr.io/HuntedRaven7/gentoo-ing-packages (curated overlay,
+#   - Binhosts: ghcr.io/HuntedRaven7/gentoo-ing-packages (curated overlay,
 #               priority 10000, COPY --from= pinned by digest below) is the
-#               ONLY source of packages — it mirrors the official Gentoo
+#               source of normal packages — it mirrors the official Gentoo
 #               binhost set and compiles every gap, so no source rebuilds and
-#               no runtime dependency on distfiles.gentoo.org
-#   - System:   emerges the OSTree/kernel/dracut/Podman stack entirely from the
-#               overlay binrepo (no compiler anywhere), builds the initramfs,
-#               writes prepare-root.conf, boots
+#               no runtime dependency on distfiles.gentoo.org;
+#               ghcr.io/HuntedRaven7/gentoo-ing-akmods (priority 10100) ships
+#               the out-of-tree kernel modules (nvidia) prebuilt against this
+#               image's exact kernel (see .kver lockstep gate in 10-build.sh)
+#   - System:   emerges the OSTree/kernel/dracut/Podman stack plus the full
+#               GNOME desktop entirely from the overlay binrepo (no compiler
+#               anywhere), builds the initramfs, writes prepare-root.conf,
+#               boots; runs the default/linux/amd64/23.0/desktop/gnome/systemd
+#               profile so its USE match the overlay's compiled closure
 #
 # The project name defined here is the single source of truth for your
 # custom image's identity. When changing it, update all references in:
@@ -32,29 +37,44 @@
 # The finpilot factory pattern, rebased onto Gentoo. The main image NEVER
 # compiles a package: every atom comes prebuilt from a binhost.
 #
-# 1. Binhost stage (pkgs) - the binary package cache from
-#    ghcr.io/HuntedRaven7/gentoo-ing-packages. Its content is:
+# 1. Binhost stages - the binary package caches from the two factories:
+#    ghcr.io/HuntedRaven7/gentoo-ing-packages contains:
 #      /var/cache/binhost/gentoo-ing          -> binpkg tree + Packages index
 #      /var/cache/binhost/gentoo-ing-ebuilds  -> ebuild overlay (bootc, + any
 #                                                package ::gentoo lacks)
 #    The gentoo-ing-packages factory seeds the official binhost's set and
 #    BUILDS the gaps (bootc, kernel, firmware, skopeo, flatpak, gum, just, iwd,
-#    jq) once, publishing them as binpkgs so this repo stays compile-free.
+#    jq, GNOME) once, publishing them as binpkgs so this repo stays compile-free.
+#    ghcr.io/HuntedRaven7/gentoo-ing-akmods contains:
+#      /var/cache/binhost/gentoo-ing-akmods  -> module binpkg tree (.tbz2 +
+#                                                Packages index + .manifest)
+#                                                + .kver (exact build kernel)
+#    The gentoo-ing-akmods factory prebuilds out-of-tree kernel modules
+#    (x11-drivers/nvidia-drivers) against the consumer's kernel — the only way
+#    a sealed --usepkgonly image can carry a kernel-loaded module.
 #
 # 2. System stage - the actual image: binrepos.conf points at the curated
-#    overlay (priority 10000) as the sole binrepo, emerge of the
-#    kernel/firmware/OSTree/Podman/skopeo/systemd stack with --getbinpkg +
-#    --usepkgonly (hard failure if a binpkg is missing — never a source build),
-#    dracut initramfs, prepare-root.conf (composefs + readonly sysroot), and
-#    bootc container lint. Final layers are bootable via /sbin/init.
+#    overlay (priority 10000) for normal packages and the module overlay
+#    (priority 10100) for nvidia, emerge of the kernel/firmware/OSTree/Podman/
+#    skopeo/systemd stack + GNOME + nvidia with --getbinpkg + --usepkgonly (hard
+#    failure if a binpkg is missing — never a source build), dracut initramfs,
+#    prepare-root.conf (composefs + readonly sysroot), and bootc container lint.
+#    Final layers are bootable via /sbin/init.
 #
 # See: https://github.com/HuntedRaven7/blueprint/blob/main/docs/GENTOO.md
 ###############################################################################
 
 # Curated binhost produced by the gentoo-ing-packages factory. Digest is pinned
-# by Renovate; a floating tag initially while the first publish is seeded.
-ARG GENTOO_PACKAGES_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-packages:latest"
+# by Renovate.
+ARG GENTOO_PACKAGES_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-packages@sha256:d87c7612c76cff1f051518d0ed5125bd35e6f90bd118d237da95cf06e3ae8536"
 FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
+
+# Module binhost produced by the gentoo-ing-akmods factory: out-of-tree kernel
+# modules prebuilt against the exact kernel this image ships (its .kver gate).
+# Digest is pinned by Renovate; the pinned digest must always be rebuilt after
+# a kernel bump or the 10-build.sh .kver lockstep gate fails the build.
+ARG GENTOO_AKMODS_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-akmods@sha256:133352065dca367cbeff5b33cb1f4962273636288fd68fb5240bb7fca10cc788"
+FROM ${GENTOO_AKMODS_IMAGE} AS akmods
 
 # Context stage - combine local build scripts, system files, and custom files
 FROM scratch AS ctx
@@ -82,6 +102,9 @@ ARG VERSION=""
 # resolve during dependency calculation.
 COPY --from=pkgs /var/cache/binhost/gentoo-ing /var/cache/binhost/gentoo-ing
 COPY --from=pkgs /var/cache/binhost/gentoo-ing-ebuilds /var/cache/binhost/gentoo-ing-ebuilds
+# Module binhost: prebuilt out-of-tree kernel modules + their closure, plus
+# the .kver (exact kernel) and .manifest (kept for tooling/inspection purposes).
+COPY --from=akmods /var/cache/binhost/gentoo-ing-akmods /var/cache/binhost/gentoo-ing-akmods
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/build/00-image-info.sh

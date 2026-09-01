@@ -10,7 +10,7 @@ Scripts are named with a number prefix (e.g., `10-build.sh`, `20-extra-packages.
 
 ## Included Scripts
 
-- **`00-gentoo-common.sh`** - Shared bootstrap: portage tree, profile symlink, make.conf defaults (getbinpkg + usepkgonly, stable keywords), license drop-in, ebuild overlay import for atoms `::gentoo` lacks, and binrepos.conf (curated overlay priority 10000 + official binhost 9999)
+- **`00-gentoo-common.sh`** - Shared bootstrap: portage tree, profile symlink, make.conf defaults (getbinpkg + usepkgonly, stable keywords), license drop-in, ebuild overlay import for atoms `::gentoo` lacks, binrepos.conf (curated overlay priority 10000 + module overlay 10100 + official binhost 9999), and the nvidia `~amd64`/dist-kernel overrides matching the gentoo-ing-akmods maker
 - **`00-image-info.sh`** - Writes `/usr/share/ublue-os/image-info.json` and branding into `/usr/lib/os-release`
 - **`10-build.sh`** - Main build: emerges the bootc/OSTree/Podman/kernel stack as binaries, builds the initramfs, writes prepare-root.conf, lays out `/var`
 - **`clean-stage.sh`** - Removes build residue before linting (keeps the binhost)

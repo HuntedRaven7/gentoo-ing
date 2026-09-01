@@ -107,6 +107,7 @@ Use the `finpilot-maintain` and `finpilot-ci` skills, then:
 ### Gentoo Binhost Integration
 
 - Curated binhost overlay (`HuntedRaven7/gentoo-ing-packages`) consumed by `COPY --from=` and pinned by digest; seeds and custom builds land in `packages/` there
+- Module binhost overlay (`HuntedRaven7/gentoo-ing-akmods`, priority 10100) prebuilds the out-of-tree nvidia kernel module against this image's exact kernel; a `.kver` lockstep gate in `10-build.sh` fails the build if the two ever disagree
 - Official Gentoo binhost as the load-bearing source — `emerge --getbinpkg` installs prebuilt binaries, so CI compiles only what both hosts miss
 - See [build/00-gentoo-common.sh](build/00-gentoo-common.sh) for the binrepos wiring
 
