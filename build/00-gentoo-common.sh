@@ -83,6 +83,7 @@ echo 'x11-drivers/nvidia-drivers dist-kernel' > /etc/portage/package.use/nvidia
 # app-shells/gum, dev-util/just), shipped inside the gentoo-ing-packages image
 # so their versions resolve. Section name == repo_name (profiles/repo_name).
 if [ -f "${EBUILD_OVERLAY}/metadata/layout.conf" ]; then
+    mkdir -p /etc/portage/repos.conf
     cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
 [gentoo-ing-ebuilds]
 location = ${EBUILD_OVERLAY}
