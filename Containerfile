@@ -64,16 +64,22 @@
 # See: https://github.com/HuntedRaven7/blueprint/blob/main/docs/GENTOO.md
 ###############################################################################
 
-# Curated binhost produced by the gentoo-ing-packages factory. Digest is pinned
-# by Renovate.
-ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:d87c7612c76cff1f051518d0ed5125bd35e6f90bd118d237da95cf06e3ae8536"
-FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
+# Image references are declared as GLOBAL ARGs (before the first FROM) so every
+# following FROM can see them; buildah resolves FROM ${VAR} to empty otherwise
+# ("no FROM statement found"). Digests are pinned by Renovate.
 
+# Curated binhost produced by the gentoo-ing-packages factory.
+ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:d87c7612c76cff1f051518d0ed5125bd35e6f90bd118d237da95cf06e3ae8536"
 # Module binhost produced by the gentoo-ing-akmods factory: out-of-tree kernel
 # modules prebuilt against the exact kernel this image ships (its .kver gate).
-# Digest is pinned by Renovate; the pinned digest must always be rebuilt after
-# a kernel bump or the 10-build.sh .kver lockstep gate fails the build.
+# The pinned digest must always be rebuilt after a kernel bump, or the
+# 10-build.sh .kver lockstep gate fails the build.
 ARG GENTOO_AKMODS_IMAGE="ghcr.io/huntedraven7/gentoo-ing-akmods@sha256:133352065dca367cbeff5b33cb1f4962273636288fd68fb5240bb7fca10cc788"
+# Base image - Gentoo stage3 with systemd. Renovate will keep the digest pin
+# current.
+ARG GENTOO_IMAGE="gentoo/stage3:systemd"
+
+FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
 FROM ${GENTOO_AKMODS_IMAGE} AS akmods
 
 # Context stage - combine local build scripts, system files, and custom files
@@ -83,9 +89,6 @@ COPY build /build
 COPY custom /custom
 COPY system_files /system_files
 
-# Base image - Gentoo stage3 with systemd. Renovate will keep the digest pin
-# current.
-ARG GENTOO_IMAGE="gentoo/stage3:systemd"
 FROM ${GENTOO_IMAGE} AS system
 
 # Re-declare identity ARGs for the system stage
