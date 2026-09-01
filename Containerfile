@@ -69,7 +69,7 @@
 # ("no FROM statement found"). Digests are pinned by Renovate.
 
 # Curated binhost produced by the gentoo-ing-packages factory.
-ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:d87c7612c76cff1f051518d0ed5125bd35e6f90bd118d237da95cf06e3ae8536"
+ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:6aa7669680b4fc249b4e9cbe347091957cdfdc14149798ad18a7b042957aa433"
 # Module binhost produced by the gentoo-ing-akmods factory: out-of-tree kernel
 # modules prebuilt against the exact kernel this image ships (its .kver gate).
 # The pinned digest must always be rebuilt after a kernel bump, or the
