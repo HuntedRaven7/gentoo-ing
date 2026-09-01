@@ -43,14 +43,14 @@
     },
     {
       "description": "Keep the first-party binhost overlay fresh immediately",
-      "matchDepNames": ["ghcr.io/HuntedRaven7/gentoo-ing-packages"],
+      "matchDepNames": ["ghcr.io/huntedraven7/gentoo-ing-packages"],
       "matchUpdateTypes": ["digest", "pinDigest", "pin"],
       "automerge": true,
       "schedule": ["at any time"]
     },
     {
       "description": "Keep the first-party module (akmods) overlay fresh immediately",
-      "matchDepNames": ["ghcr.io/HuntedRaven7/gentoo-ing-akmods"],
+      "matchDepNames": ["ghcr.io/huntedraven7/gentoo-ing-akmods"],
       "matchUpdateTypes": ["digest", "pinDigest", "pin"],
       "automerge": true,
       "schedule": ["at any time"]

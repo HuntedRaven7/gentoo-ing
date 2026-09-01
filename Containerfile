@@ -66,14 +66,14 @@
 
 # Curated binhost produced by the gentoo-ing-packages factory. Digest is pinned
 # by Renovate.
-ARG GENTOO_PACKAGES_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-packages@sha256:d87c7612c76cff1f051518d0ed5125bd35e6f90bd118d237da95cf06e3ae8536"
+ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:d87c7612c76cff1f051518d0ed5125bd35e6f90bd118d237da95cf06e3ae8536"
 FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
 
 # Module binhost produced by the gentoo-ing-akmods factory: out-of-tree kernel
 # modules prebuilt against the exact kernel this image ships (its .kver gate).
 # Digest is pinned by Renovate; the pinned digest must always be rebuilt after
 # a kernel bump or the 10-build.sh .kver lockstep gate fails the build.
-ARG GENTOO_AKMODS_IMAGE="ghcr.io/HuntedRaven7/gentoo-ing-akmods@sha256:133352065dca367cbeff5b33cb1f4962273636288fd68fb5240bb7fca10cc788"
+ARG GENTOO_AKMODS_IMAGE="ghcr.io/huntedraven7/gentoo-ing-akmods@sha256:133352065dca367cbeff5b33cb1f4962273636288fd68fb5240bb7fca10cc788"
 FROM ${GENTOO_AKMODS_IMAGE} AS akmods
 
 # Context stage - combine local build scripts, system files, and custom files
