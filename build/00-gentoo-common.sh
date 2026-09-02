@@ -79,6 +79,16 @@ mkdir -p /etc/portage/package.use
 echo 'sys-kernel/installkernel dracut' > /etc/portage/package.use/installkernel
 echo 'x11-drivers/nvidia-drivers dist-kernel' > /etc/portage/package.use/nvidia
 
+# Align expected USE with the official binhost's builds where the bootc/podman
+# closure hard-requires flags the official binpkg carries (containers-common ->
+# net-firewall/iptables[nftables]; GNOME -> net-fs/samba -> ngtcp2[gnutls]).
+# --binpkg-respect-use=y otherwise rejects the official binary and the sealed
+# closure cannot resolve.
+cat > /etc/portage/package.use/respect-use <<EOF
+net-libs/ngtcp2 gnutls
+net-firewall/iptables nftables
+EOF
+
 # 5. Ebuild overlay for atoms ::gentoo does not package (sys-apps/bootc,
 # app-shells/gum, dev-util/just), shipped inside the gentoo-ing-packages image
 # so their versions resolve. Section name == repo_name (profiles/repo_name).
@@ -105,11 +115,13 @@ cat > /etc/portage/binrepos.conf/00-gentoo-ing.conf <<EOF
 [gentoo-ing]
 priority = 10000
 location = ${BINHOST_OVERLAY}
+sync-uri = file://${BINHOST_OVERLAY}
 verify-signature = false
 EOF
 cat > /etc/portage/binrepos.conf/10-gentoo-ing-akmods.conf <<EOF
 [gentoo-ing-akmods]
 priority = 10100
 location = ${AKMODS_OVERLAY}
+sync-uri = file://${AKMODS_OVERLAY}
 verify-signature = false
 EOF
