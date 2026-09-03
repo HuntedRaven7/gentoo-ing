@@ -57,6 +57,8 @@ grep -q '^MAKEOPTS=' /etc/portage/make.conf \
     || echo "MAKEOPTS=\"-j${NPROC}\"" >> /etc/portage/make.conf
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
     || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --usepkgonly --binpkg-respect-use=y"' >> /etc/portage/make.conf
+grep -q '^USE=' /etc/portage/make.conf \
+    || echo 'USE="dracut nftables systemd X wayland dbus gtk gnome qt6 plasma opengl harfbuzz alsa pulseaudio x264 x265 aac mp3 opus vpx libaom encode ffmpeg gstreamer"' >> /etc/portage/make.conf
 
 # 4. Accept everything from the curated overlay + official binhost
 mkdir -p /etc/portage/package.license
@@ -88,6 +90,25 @@ cat > /etc/portage/package.use/respect-use <<EOF
 net-libs/ngtcp2 gnutls
 net-firewall/iptables nftables
 EOF
+
+# Desktop-specific USE alignment: flags that the binhost publishes multiple
+# builds for (respect-use=y picks the matching one), or pins that resolve
+# desktop dependency chains no published build satisfies.
+cat > /etc/portage/package.use/tunaos-desktops <<EOF
+kde-plasma/kwin lock
+kde-plasma/kwin-x11 lock
+sys-libs/zlib minizip
+gnome-base/gnome-control-center networkmanager
+gnome-base/gnome-shell networkmanager
+dev-libs/libdbusmenu gtk3
+EOF
+
+# Global omits and per-package pins that avoid unsatisfiable deps
+echo 'media-video/pipewire extra -ffmpeg' > /etc/portage/package.use/pipewire
+echo 'media-libs/gst-plugins-bad -vulkan' > /etc/portage/package.use/gst-plugins-bad
+echo 'sys-libs/minizip-ng compat' > /etc/portage/package.use/minizip-ng
+echo 'gui-libs/gtk -vulkan' > /etc/portage/package.use/gtk
+echo '*/* -abi_x86_32' > /etc/portage/package.use/multilib
 
 # 5. Ebuild overlay for atoms ::gentoo does not package (sys-apps/bootc,
 # app-shells/gum, dev-util/just), shipped inside the gentoo-ing-packages image

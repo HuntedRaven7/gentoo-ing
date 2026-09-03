@@ -57,6 +57,11 @@ PACKAGES=(
     net-misc/networkmanager
     net-wireless/iwd
     x11-drivers/nvidia-drivers
+    app-crypt/tpm2-tss
+    net-vpn/tailscale
+    gui-apps/wl-clipboard
+    media-video/ffmpeg
+    media-plugins/gst-plugins-meta
 )
 
 emerge --verbose -g --deep --newuse "${PACKAGES[@]}" | tee /tmp/emerge.log
