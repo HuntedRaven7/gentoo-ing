@@ -2,39 +2,40 @@
 ####################
 ### custom-apps.just
 ####################
-## Example application installation commands
-## See .agents/skills/finpilot-custom/SKILL.md for runtime layer guidance
-## See .agents/skills/finpilot-examples/SKILL.md for activation patterns
+## Application installation commands for gentoo-ing
+## Packages come from the curated gentoo-ing binhost overlay, then the official
+## Gentoo binhost; emerge only compiles when neither has a binary package.
 
-# Install default applications via Homebrew
+# Add a package at build time (the image rootfs is read-only, so native
+# packages cannot be emerged at runtime). Binaries are pulled from the binhosts
+# with --getbinpkg; GUIs usually belong in a Flatpak instead.
 [group('Apps')]
-install-default-apps:
-    #!/usr/bin/env bash
-    echo "Installing default applications via Homebrew..."
-    brew bundle --file /usr/share/ublue-os/homebrew/default.Brewfile
+install-app PACKAGE:
+    #!/usr/bin/bash
+    echo "Native packages are added at build time in build/10-build.sh."
+    echo "For a GUI app, prefer:  ujust install-flatpak <APP_ID>"
+    echo ""
+    echo "If you still want ${PACKAGE} in the image, add it to the PACKAGES"
+    echo "array in build/10-build.sh (or the gentoo-ing-packages overlay), then"
+    echo "rebuild."
 
-# Install development tools via Homebrew
+# Install a Flatpak application from Flathub
 [group('Apps')]
-install-dev-tools:
-    #!/usr/bin/env bash
-    echo "Installing development tools via Homebrew..."
-    brew bundle --file /usr/share/ublue-os/homebrew/development.Brewfile
+install-flatpak APP_ID:
+    #!/usr/bin/bash
+    echo "Installing {{ APP_ID }} from Flathub..."
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+    flatpak install -y flathub {{ APP_ID }}
 
-# Install fonts via Homebrew
+# Example: Install VSCode via Flatpak
 [group('Apps')]
-install-fonts:
-    #!/usr/bin/env bash
-    echo "Installing fonts via Homebrew..."
-    brew bundle --file /usr/share/ublue-os/homebrew/fonts.Brewfile
+install-vscode:
+    ujust install-flatpak com.visualstudio.code
 
-# Install all Brewfiles at once
+# Example: Install GIMP via Flatpak
 [group('Apps')]
-install-all-brew:
-    #!/usr/bin/env bash
-    echo "Installing all applications from Brewfiles..."
-    brew bundle --file /usr/share/ublue-os/homebrew/default.Brewfile
-    brew bundle --file /usr/share/ublue-os/homebrew/development.Brewfile
-    brew bundle --file /usr/share/ublue-os/homebrew/fonts.Brewfile
+install-gimp:
+    ujust install-flatpak org.gimp.GIMP
 
 # Install JetBrains Toolbox for managing JetBrains IDEs
 [group('Apps')]
@@ -61,21 +62,3 @@ install-jetbrains-toolbox:
 [group('Apps')]
 jetbrains-toolbox:
     @ujust install-jetbrains-toolbox
-
-# Install a Flatpak application from Flathub
-[group('Apps')]
-install-flatpak APP_ID:
-    #!/usr/bin/bash
-    echo "Installing {{ APP_ID }} from Flathub..."
-    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-    flatpak install -y flathub {{ APP_ID }}
-
-# Example: Install VSCode via Flatpak
-[group('Apps')]
-install-vscode:
-    ujust install-flatpak com.visualstudio.code
-
-# Example: Install GIMP via Flatpak
-[group('Apps')]
-install-gimp:
-    ujust install-flatpak org.gimp.GIMP

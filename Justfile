@@ -76,36 +76,35 @@ sudoif command *args:
 #   $target_image - The tag you want to apply to the image (default: $IMAGE_NAME).
 #   $tag - The tag for the image (default: $DEFAULT_TAG).
 #
-# The script constructs the version string using the Fedora major version, tag,
+# The script constructs the version string using the Gentoo profile, tag,
 # and the current date. If the git working directory is clean, it also includes
 # the short SHA of the current HEAD.
 #
 # just build $target_image $tag
 #
 # Example usage:
-#   just build aurora lts
+#   just build gentoo-ing testing
 #
-# This will build an image 'aurora:lts' with DX and GDX enabled.
-#
+# This will build an image 'gentoo-ing:testing'.
 
 # Build the image using the specified parameters
 build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     #!/usr/bin/env bash
 
-    # Read the Fedora major version from Containerfile (single source of truth).
+    # Read the Gentoo profile from Containerfile (single source of truth).
     # The base image itself is pinned in the Containerfile FROM line.
-    fedora_version=$(grep -E '^ARG FEDORA_MAJOR_VERSION=' Containerfile | head -n1 | sed -E 's/^ARG FEDORA_MAJOR_VERSION="?([^"]+)"?/\1/')
-    if [[ -z "${fedora_version:-}" ]]; then
-        echo "ERROR: Could not extract FEDORA_MAJOR_VERSION from Containerfile"
+    gentoo_profile=$(grep -E '^ARG GENTOO_PROFILE=' Containerfile | head -n1 | sed -E 's/^ARG GENTOO_PROFILE="?([^"]+)"?/\1/')
+    if [[ -z "${gentoo_profile:-}" ]]; then
+        echo "ERROR: Could not extract GENTOO_PROFILE from Containerfile"
         exit 1
     fi
 
-    # Bluefin-style version string: <fedora-version>.<date> for stable,
-    # <tag>-<fedora-version>.<date> for everything else.
+    # Bluefin-style version string: <gentoo-profile>.<date> for stable,
+    # <tag>-<gentoo-profile>.<date> for everything else.
     if [[ "${tag}" =~ stable ]]; then
-        ver="${fedora_version}.$(date +%Y%m%d)"
+        ver="${gentoo_profile}.$(date +%Y%m%d)"
     else
-        ver="${tag}-${fedora_version}.$(date +%Y%m%d)"
+        ver="${tag}-${gentoo_profile}.$(date +%Y%m%d)"
     fi
 
     # Avoid tag collisions when rebuilding on the same day
@@ -263,7 +262,6 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
     set -euo pipefail
 
     args="--type ${type} "
-    args+="--use-librepo=True "
     args+="--rootfs=btrfs"
 
     BUILDTMP=$(mktemp -p "${PWD}" -d -t _build-bib.XXXXXXXXXX)

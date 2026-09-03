@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+###############################################################################
+# Example: Installing extra Gentoo packages at build time
+###############################################################################
+# This is an EXAMPLE file. It shows the Gentoo idiom for adding packages to the
+# image: always via `emerge --getbinpkg`, which pulls prebuilt binaries from
+# the configured binhosts (curated gentoo-ing overlay, then the official Gentoo
+# binhost) and only builds from source when neither has a suitable package.
+#
+# To use this script:
+# 1. Rename to drop the .example extension: 20-extra-packages.sh
+# 2. Add an explicit RUN block for /ctx/build/20-extra-packages.sh after
+#    10-build.sh in Containerfile. See build/README.md for the standard block.
+#
+# CONVENTIONS:
+# - Use `emerge --getbinpkg` (EMERGE_DEFAULT_OPTS already carries it)
+# - Add licenses/keywords for anything non-free or ~amd64 via
+#   /etc/portage/package.{license,accept_keywords} (00-gentoo-common.sh already
+#   accepts */* for the curated overlay, but be explicit here for clarity)
+# - Prefer adding long-tail packages to `config/packages.txt` in the
+#   gentoo-ing-packages overlay so they ship as binpkgs, not source builds
+###############################################################################
+
+echo "Installing extra packages..."
+#emerge --verbose app-editors/emacs app-office/libreoffice
+
+echo "Extra packages installed successfully"

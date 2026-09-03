@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+###############################################################################
+# Example: Instantiating a desktop environment
+###############################################################################
+# This is an EXAMPLE file. On Gentoo a desktop is just a set of packages
+# (usually pulled by a profile or @world group). To replace or add a desktop
+# environment, emerge its meta/group package with --getbinpkg and then enable
+# the matching systemd service. This example enables GNOME (the classic
+# gentoo's default/linux/amd64/23.0/desktop profile stack).
+#
+# To use this script:
+# 1. Rename: 30-desktop.sh
+# 2. Point the system profile at a desktop profile instead of the minimal one
+#    selected by 00-gentoo-common.sh (BRANCH_PROFILE there), or override per
+#    package, then add the RUN block for /ctx/build/30-desktop.sh after
+#    10-build.sh.
+#
+# NOTE: The curated binhost / official binhost only carry the packages in the
+# main desktop set when the gentoo-ing-packages overlay seeds them. For
+# anything else you will get a source build (slow on GH Actions) — seed the
+# group into the overlay first via `just seed`.
+###############################################################################
+
+echo "Installing GNOME desktop..."
+emerge --verbose gnome-base/gnome
+
+systemctl enable gdm
+
+echo "Desktop installed. Set the profile EARLY (see BRANCH_PROFILE in 00-gentoo-common.sh) — mixing desktop and non-desktop USE state can be costly."

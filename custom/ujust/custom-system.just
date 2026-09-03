@@ -2,27 +2,18 @@
 #######################
 ### custom-system.just
 #######################
-## Example system configuration commands
-## These are simplified examples adapted from Bluefin
+## System configuration commands for gentoo-ing
 
-# Run a system benchmark (requires stress-ng from Homebrew)
+# Run a system benchmark (stress-ng must be baked in at build time; the rootfs
+# is read-only so it cannot be emerged at runtime)
 [group('System')]
 benchmark:
     #!/usr/bin/env bash
     source /usr/lib/ujust/ujust.sh
     if ! type -P "stress-ng" &>/dev/null ; then
-        echo "stress-ng is not installed."
-        if command -v brew &>/dev/null; then
-            if gum confirm "Install stress-ng via Homebrew?" ; then
-                brew install stress-ng
-                brew link stress-ng
-            else
-                exit 0
-            fi
-        else
-            echo "Please install stress-ng to run benchmarks."
-            exit 1
-        fi
+        echo "stress-ng is not in this image."
+        echo "Add 'app-benchmarks/stress-ng' to PACKAGES in build/10-build.sh and rebuild."
+        exit 1
     fi
     echo 'Running a 1 minute benchmark...'
     pushd $(mktemp -d) > /dev/null
@@ -46,6 +37,14 @@ configure-dev-groups:
     done
 
     echo "Groups configured. Log out and back in for changes to take effect."
+
+# Update the portage tree (keeps /var/db/repos/gentoo current for context and
+# toolbox-based builds; binhost index refresh is handled by emaint --fix)
+[group('Maintenance')]
+sync-portage:
+    #!/usr/bin/bash
+    sudo emerge --sync
+    sudo emaint --fix binhost
 
 # Example toggle command with user choice
 [group('System')]
