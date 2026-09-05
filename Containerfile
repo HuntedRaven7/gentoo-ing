@@ -74,7 +74,7 @@ ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:6aa76
 # modules prebuilt against the exact kernel this image ships (its .kver gate).
 # The pinned digest must always be rebuilt after a kernel bump, or the
 # 10-build.sh .kver lockstep gate fails the build.
-ARG GENTOO_AKMODS_IMAGE="ghcr.io/huntedraven7/gentoo-ing-akmods@sha256:133352065dca367cbeff5b33cb1f4962273636288fd68fb5240bb7fca10cc788"
+ARG GENTOO_AKMODS_IMAGE="ghcr.io/huntedraven7/gentoo-ing-akmods@sha256:cc18a9f94fb337c3fa3bc4595add55baabd15e69d55670d5f1c76b521d32b535"
 # Base image - Gentoo stage3 with systemd. Renovate will keep the digest pin
 # current.
 ARG GENTOO_IMAGE="gentoo/stage3:systemd"
