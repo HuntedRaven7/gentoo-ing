@@ -77,7 +77,7 @@ ARG GENTOO_PACKAGES_IMAGE="ghcr.io/huntedraven7/gentoo-ing-packages@sha256:6aa76
 ARG GENTOO_AKMODS_IMAGE="ghcr.io/huntedraven7/gentoo-ing-akmods@sha256:133352065dca367cbeff5b33cb1f4962273636288fd68fb5240bb7fca10cc788"
 # Base image - Gentoo stage3 with systemd. Renovate will keep the digest pin
 # current.
-ARG GENTOO_IMAGE="gentoo/stage3:systemd"
+ARG GENTOO_IMAGE="gentoo/stage3:systemd@sha256:8885475e1aeba8d30b8e1e3cf9fb3de2d43972f9536467d65116a9ca8b90a2cc"
 
 FROM ${GENTOO_PACKAGES_IMAGE} AS pkgs
 FROM ${GENTOO_AKMODS_IMAGE} AS akmods
